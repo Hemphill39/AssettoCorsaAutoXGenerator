@@ -140,7 +140,14 @@ export interface ConeLayout {
   /** Stations classified as part of a detected slalom. */
   slalomStations: Set<number>;
   /** Inclusive station ranges covered by each detected slalom. */
-  slalomSpans: { from: number; to: number }[];
+  slalomSpans: SlalomSpan[];
+}
+
+export interface SlalomSpan {
+  from: number;
+  to: number;
+  /** The cone line itself: the axis the driver weaves around. */
+  axis: Vec3[];
 }
 
 /**
@@ -249,7 +256,7 @@ export function layoutCones(
     });
   };
 
-  const slalomSpans: { from: number; to: number }[] = [];
+  const slalomSpans: SlalomSpan[] = [];
 
   if (opt.detectSlaloms) {
     for (const group of detectSlaloms(points, opt)) {
@@ -269,6 +276,7 @@ export function layoutCones(
       slalomSpans.push({
         from: group[0]!.station,
         to: group[group.length - 1]!.station,
+        axis: group.map((peak) => axis.get(peak.station) ?? points[peak.station]!.position),
       });
     }
   }

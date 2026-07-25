@@ -140,6 +140,15 @@ function buildTimingDummies(
     return { x: dx / len, y: 0, z: dz / len };
   };
 
+  /**
+   * Timing lines are deliberately much wider than the cone corridor.
+   *
+   * A gate only triggers if the car crosses the segment between L and R, so
+   * sizing it to the cones means a driver running slightly wide misses it
+   * entirely and the lap never registers. Real timing lines span the full track.
+   */
+  const gateHalf = Math.max(halfWidth * 3, 14);
+
   const gate = (index: number, id: string): Kn5Dummy[] => {
     const centre = centerline[index]!;
     const heading = headingOf(index);
@@ -148,12 +157,12 @@ function buildTimingDummies(
     return [
       {
         name: `AC_TIME_${id}_L`,
-        position: { x: centre.x + left.x * halfWidth, y: 0, z: centre.z + left.z * halfWidth },
+        position: { x: centre.x + left.x * gateHalf, y: 0, z: centre.z + left.z * gateHalf },
         yaw: yawFacing(heading),
       },
       {
         name: `AC_TIME_${id}_R`,
-        position: { x: centre.x + right.x * halfWidth, y: 0, z: centre.z + right.z * halfWidth },
+        position: { x: centre.x + right.x * gateHalf, y: 0, z: centre.z + right.z * gateHalf },
         yaw: yawFacing(heading),
       },
     ];

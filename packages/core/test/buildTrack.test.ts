@@ -68,15 +68,44 @@ describe("buildTrack end-to-end", () => {
     }
   });
 
-  it("separates each timing gate by exactly the course width", () => {
+  it("makes timing gates wider than the cone corridor so they cannot be missed", () => {
     const result = buildTrack(sources, { courseWidth: 12 });
     const model = decodeKn5(result.files.find((f) => f.path.endsWith(".kn5"))!.data);
     for (const gate of ["0", "1"]) {
       const l = model.dummies.find((d) => d.name === `AC_TIME_${gate}_L`)!;
       const r = model.dummies.find((d) => d.name === `AC_TIME_${gate}_R`)!;
-      expect(
-        Math.hypot(l.position.x - r.position.x, l.position.z - r.position.z),
-      ).toBeCloseTo(12, 3);
+      const width = Math.hypot(l.position.x - r.position.x, l.position.z - r.position.z);
+      expect(width).toBeGreaterThan(12 * 2);
+    }
+  });
+
+  /**
+   * AC decides crossing direction from which object is L and which is R. Get it
+   * backwards and the gate never triggers — no lap, no sector. This is the most
+   * commonly cited cause of dead timing on custom tracks, and it is exactly what
+   * the earlier left-handed coordinate bug produced.
+   */
+  it("puts AC_TIME_n_L on the actual left of travel", () => {
+    const result = buildTrack(sources);
+    const model = decodeKn5(result.files.find((f) => f.path.endsWith(".kn5"))!.data);
+    const line = result.centerline;
+
+    const headingAtIndex = (i: number) => {
+      const a = line[Math.max(0, i - 3)]!;
+      const b = line[Math.min(line.length - 1, i + 3)]!;
+      const len = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+      return { x: (b.x - a.x) / len, z: (b.z - a.z) / len };
+    };
+
+    for (const [gate, index] of [["0", 0], ["1", line.length - 1]] as [string, number][]) {
+      const l = model.dummies.find((d) => d.name === `AC_TIME_${gate}_L`)!;
+      const r = model.dummies.find((d) => d.name === `AC_TIME_${gate}_R`)!;
+      const mid = { x: (l.position.x + r.position.x) / 2, z: (l.position.z + r.position.z) / 2 };
+      const heading = headingAtIndex(index);
+      // Left of heading in AC's right-handed frame (X=east, Y=up, Z=south).
+      const leftDir = { x: heading.z, z: -heading.x };
+      const toL = { x: l.position.x - mid.x, z: l.position.z - mid.z };
+      expect(toL.x * leftDir.x + toL.z * leftDir.z).toBeGreaterThan(0);
     }
   });
 

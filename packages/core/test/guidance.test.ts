@@ -3,6 +3,7 @@ import {
   buildEdgeLines,
   buildGuidanceMeshes,
   coneSpacingFor,
+  corridorCenterline,
 } from "../src/geometry/guidance.js";
 import { computeCurvature } from "../src/course/centerline.js";
 import type { CenterlinePoint, Vec3 } from "../src/types.js";
@@ -109,5 +110,78 @@ describe("guidance levels", () => {
     expect(guided.straight).toBeLessThan(realistic.straight);
     expect(training.straight).toBeLessThan(guided.straight);
     expect(training.corner).toBeLessThan(guided.corner);
+  });
+});
+
+describe("corridor through slaloms", () => {
+  /**
+   * Edge lines built on the driven line snake through a slalom, because the
+   * driven line is a wave while the cones sit in a straight row. The corridor
+   * must instead run straight along the cone axis, so the driver weaves across
+   * the paint — which is what a slalom actually looks like.
+   */
+  function weave(amplitude = 3, wavelength = 36, samples = 400): CenterlinePoint[] {
+    const positions: Vec3[] = [];
+    for (let i = 0; i <= samples; i++) {
+      const z = i * 0.5;
+      positions.push({ x: amplitude * Math.sin((z / wavelength) * Math.PI * 2), y: 0, z });
+    }
+    return centerlineFrom(positions);
+  }
+
+  it("follows the driven line when there is no slalom", () => {
+    const points = weave();
+    const line = corridorCenterline(points, []);
+    line.forEach((p, i) => expect(p.x).toBeCloseTo(points[i]!.position.x, 9));
+  });
+
+  it("runs straight along the axis through a slalom, not weaving with the driver", () => {
+    const points = weave(3);
+    // Slalom occupies the middle of the trace, so there is untouched line either
+    // side of the blended margins.
+    const span = {
+      from: 150,
+      to: 250,
+      // The real cone line: dead straight at x = 0.
+      axis: Array.from({ length: 6 }, (_, i) => ({ x: 0, y: 0, z: 75 + i * 10 })),
+    };
+    const line = corridorCenterline(points, [span]);
+
+    // Inside the slalom the corridor must hug the axis, not the ±3 m weave.
+    for (let i = span.from; i <= span.to; i++) {
+      expect(Math.abs(line[i]!.x)).toBeLessThan(1.0);
+    }
+    // Well clear of the slalom and its blend margins, the driven line is untouched.
+    expect(line[5]!.x).toBeCloseTo(points[5]!.position.x, 6);
+    expect(line[395]!.x).toBeCloseTo(points[395]!.position.x, 6);
+  });
+
+  it("joins the driven line without a kink", () => {
+    const points = weave(3);
+    const span = {
+      from: 150,
+      to: 250,
+      axis: Array.from({ length: 6 }, (_, i) => ({ x: 0, y: 0, z: 75 + i * 10 })),
+    };
+    const line = corridorCenterline(points, [span]);
+
+    // No step change anywhere along the blended corridor.
+    for (let i = 1; i < line.length; i++) {
+      const step = Math.hypot(line[i]!.x - line[i - 1]!.x, line[i]!.z - line[i - 1]!.z);
+      expect(step).toBeLessThan(2);
+    }
+  });
+
+  it("paints through the slalom rather than leaving a gap", () => {
+    const points = weave(3);
+    const span = {
+      from: 150,
+      to: 250,
+      axis: Array.from({ length: 6 }, (_, i) => ({ x: 0, y: 0, z: 75 + i * 10 })),
+    };
+    const withSlalom = buildEdgeLines(points, 4.5, 0, 0.15, "paint_edges", [span]);
+    const without = buildEdgeLines(points, 4.5, 0, 0.15, "paint_edges", []);
+    // Same amount of paint: the slalom is covered, just along a different line.
+    expect(withSlalom.vertices.length).toBe(without.vertices.length);
   });
 });
