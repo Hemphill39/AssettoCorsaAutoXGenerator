@@ -56,6 +56,22 @@ export interface ConeLayoutOptions {
   pointerCones: boolean;
   /** Minimum gap between pointer cones, in metres. */
   pointerSpacing: number;
+  /**
+   * How far ahead a pointer cone aims, in metres.
+   *
+   * Aiming straight along the local heading points the cone directly away from
+   * an approaching driver, so it is seen end-on and is nearly invisible. Aiming
+   * at where the course goes next angles it across the line of sight — visible,
+   * and still telling you where to go. Set to 0 for the old behaviour.
+   */
+  pointerLookahead: number;
+  /**
+   * Stand a normal cone beside each pointer.
+   *
+   * Real courses lay pointers next to standing cones; the upright one catches
+   * the eye from a distance and the pointer beside it says which way.
+   */
+  pointerCompanion: boolean;
 }
 
 export const DEFAULT_CONE_OPTIONS: ConeLayoutOptions = {
@@ -68,6 +84,8 @@ export const DEFAULT_CONE_OPTIONS: ConeLayoutOptions = {
   minSlalomPeaks: 3,
   pointerCones: true,
   pointerSpacing: 20,
+  pointerLookahead: 22,
+  pointerCompanion: true,
 };
 
 export function classifySection(curvature: number, opt: ConeLayoutOptions): SectionKind {
@@ -281,6 +299,21 @@ export function layoutCones(
    */
   const corridor = corridorCenterline(points, slalomSpans);
 
+  /** Direction to aim a pointer laid at `station`. */
+  const aimFrom = (station: number): Vec3 => {
+    if (opt.pointerLookahead <= 0) return headingOfLine(corridor, station);
+    const target = points[station]!.distance + opt.pointerLookahead;
+    let ahead = station;
+    while (ahead < points.length - 1 && points[ahead]!.distance < target) ahead++;
+    const from = corridor[station]!;
+    const to = corridor[ahead]!;
+    const dx = to.x - from.x;
+    const dz = to.z - from.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-6) return headingOfLine(corridor, station);
+    return { x: dx / len, y: 0, z: dz / len };
+  };
+
   const addGate = (station: number, type: ConeType): void => {
     const centre = corridor[station]!;
     const heading = headingOfLine(corridor, station);
@@ -316,18 +349,20 @@ export function layoutCones(
 
       const margin = blendMargin(span);
       const entry = Math.max(0, span.from - Math.max(4, Math.floor(margin / 2)));
-      const heading = headingOfLine(corridor, entry);
+      const side = { x: offset.x / len, y: 0, z: offset.z / len };
+      const at = offsetFrom(corridor[entry]!, side, half + 1.2);
       cones.push({
-        position: offsetFrom(
-          corridor[entry]!,
-          { x: offset.x / len, y: 0, z: offset.z / len },
-          half + 1.2,
-        ),
+        position: at,
         type: "pointer",
         side: 0,
         station: entry,
-        forward: heading,
+        forward: aimFrom(entry),
       });
+      if (opt.pointerCompanion) {
+        // Typed "pointer" but with no `forward`, so it renders upright: a
+        // standing cone marking the spot, with the laid pointer beside it.
+        cones.push({ position: offsetFrom(at, side, 0.9), type: "pointer", side: 0, station: entry });
+      }
     }
   }
 
@@ -377,16 +412,21 @@ export function layoutCones(
       if (classifySection(point.curvature, opt) === "straight") continue;
       if (point.distance - lastPointerAt < opt.pointerSpacing) continue;
 
-      const heading = headingAt(points, i);
+      const heading = headingOfLine(corridor, i);
       // Positive curvature turns left, so the outside of the turn is to the right.
       const outside = point.curvature > 0 ? rightOf(heading) : leftOf(heading);
+      const at = offsetFrom(corridor[i]!, outside, half + 1.2);
       cones.push({
-        position: offsetFrom(point.position, outside, half + 1.2),
+        position: at,
         type: "pointer",
         side: 0,
         station: i,
-        forward: heading,
+        forward: aimFrom(i),
       });
+      if (opt.pointerCompanion) {
+        // No `forward`, so this one renders upright beside the laid pointer.
+        cones.push({ position: offsetFrom(at, outside, 0.9), type: "pointer", side: 0, station: i });
+      }
       lastPointerAt = point.distance;
     }
   }

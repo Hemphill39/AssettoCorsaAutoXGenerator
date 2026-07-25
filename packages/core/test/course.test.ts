@@ -387,21 +387,83 @@ describe("pointer cones", () => {
     expect(onCorner.length).toBeGreaterThan(2);
   });
 
-  it("aims each pointer along the direction of travel", () => {
+  it("aims pointers at where the course goes next, not straight down the tangent", () => {
     const circle: Vec3[] = [];
     for (let i = 0; i <= 300; i++) {
       const a = (i / 300) * Math.PI * 2;
       circle.push({ x: 30 * Math.cos(a), y: 0, z: 30 * Math.sin(a) });
     }
     const points = centerlineFrom(circle);
-    for (const cone of layoutCones(points, { detectSlaloms: false }).cones) {
-      if (cone.type !== "pointer") continue;
-      expect(cone.forward).toBeDefined();
+    const laid = layoutCones(points, { detectSlaloms: false }).cones.filter(
+      (c) => c.type === "pointer" && c.forward,
+    );
+    expect(laid.length).toBeGreaterThan(2);
+
+    const dots = laid.map((cone) => {
       const heading = headingAt(points, cone.station);
-      // Must agree with the local heading, not point backwards.
-      const dot = cone.forward!.x * heading.x + cone.forward!.z * heading.z;
-      expect(dot).toBeGreaterThan(0.9);
+      return cone.forward!.x * heading.x + cone.forward!.z * heading.z;
+    });
+
+    // Forwards, never backwards.
+    for (const dot of dots) expect(dot).toBeGreaterThan(0.2);
+
+    // Angled across the driver's line of sight through the corner, otherwise the
+    // cone points straight away and is seen end-on. The last pointer on a course
+    // has its lookahead clamped by the end of the line, so judge the typical
+    // case rather than every single one.
+    const mean = dots.reduce((a, b) => a + b, 0) / dots.length;
+    expect(mean).toBeLessThan(0.97);
+  });
+
+  it("aims straight down the tangent when lookahead is disabled", () => {
+    const circle: Vec3[] = [];
+    for (let i = 0; i <= 300; i++) {
+      const a = (i / 300) * Math.PI * 2;
+      circle.push({ x: 30 * Math.cos(a), y: 0, z: 30 * Math.sin(a) });
     }
+    const points = centerlineFrom(circle);
+    for (const cone of layoutCones(points, { detectSlaloms: false, pointerLookahead: 0 }).cones) {
+      if (cone.type !== "pointer" || !cone.forward) continue;
+      const heading = headingAt(points, cone.station);
+      expect(cone.forward.x * heading.x + cone.forward.z * heading.z).toBeGreaterThan(0.9);
+    }
+  });
+
+  it("stands a companion cone beside each laid pointer", () => {
+    const circle: Vec3[] = [];
+    for (let i = 0; i <= 300; i++) {
+      const a = (i / 300) * Math.PI * 2;
+      circle.push({ x: 30 * Math.cos(a), y: 0, z: 30 * Math.sin(a) });
+    }
+    const cones = layoutCones(centerlineFrom(circle), { detectSlaloms: false }).cones;
+    const laid = cones.filter((c) => c.type === "pointer" && c.forward);
+    const standing = cones.filter((c) => c.type === "pointer" && !c.forward);
+    expect(standing.length).toBe(laid.length);
+
+    // Each companion sits within a metre or so of its pointer.
+    for (const pointer of laid) {
+      const partner = standing.find((c) => c.station === pointer.station);
+      expect(partner).toBeDefined();
+      const gap = Math.hypot(
+        partner!.position.x - pointer.position.x,
+        partner!.position.z - pointer.position.z,
+      );
+      expect(gap).toBeGreaterThan(0.5);
+      expect(gap).toBeLessThan(2);
+    }
+  });
+
+  it("omits companions when turned off", () => {
+    const circle: Vec3[] = [];
+    for (let i = 0; i <= 300; i++) {
+      const a = (i / 300) * Math.PI * 2;
+      circle.push({ x: 30 * Math.cos(a), y: 0, z: 30 * Math.sin(a) });
+    }
+    const cones = layoutCones(centerlineFrom(circle), {
+      detectSlaloms: false,
+      pointerCompanion: false,
+    }).cones;
+    expect(cones.filter((c) => c.type === "pointer" && !c.forward)).toHaveLength(0);
   });
 
   it("respects the minimum spacing between pointers", () => {
@@ -412,7 +474,7 @@ describe("pointer cones", () => {
     }
     const points = centerlineFrom(circle);
     const pointers = layoutCones(points, { detectSlaloms: false, pointerSpacing: 25 }).cones
-      .filter((c) => c.type === "pointer")
+      .filter((c) => c.type === "pointer" && c.forward)
       .sort((a, b) => a.station - b.station);
 
     for (let i = 1; i < pointers.length; i++) {
