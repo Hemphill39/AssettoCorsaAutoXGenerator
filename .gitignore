@@ -1,0 +1,17 @@
+node_modules/
+
+# Build output
+dist/
+release/
+out/
+*.tsbuildinfo
+
+# Generated tracks — reproducible from fixtures via tools/generate.ts
+*.kn5
+*.zip
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp

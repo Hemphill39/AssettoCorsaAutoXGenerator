@@ -1,0 +1,37 @@
+{
+  "name": "assetto-corsa-xcros",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Turn real autocross GPS logs into drivable Assetto Corsa tracks",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p packages/core/tsconfig.json",
+    "dev": "npm --workspace @xcross/desktop run dev",
+    "build": "npm --workspace @xcross/desktop run build",
+    "pack:win": "npm --workspace @xcross/desktop run pack:win"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.2",
+    "vite": "^6.4.3",
+    "vite-plugin-electron": "^0.29.1",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@types/three": "^0.170.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.170.0"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@xcross/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "vite --config vite.config.ts",
+    "build": "vite build --config vite.config.ts",
+    "pack:win": "npm run build && electron-builder --win --x64 --publish never",
+    "pack:mac": "npm run build && electron-builder --mac --publish never"
+  },
+  "build": {
+    "appId": "com.hemphill.xcross",
+    "productName": "Autocross Track Builder",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*"
+    ],
+    "win": {
+      "//": "zip cross-compiles cleanly from macOS; NSIS installers need Wine.",
+      "target": [
+        "zip"
+      ],
+      "artifactName": "AutocrossTrackBuilder-${version}-win-${arch}.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dir"
+      ]
+    }
+  }
+}
