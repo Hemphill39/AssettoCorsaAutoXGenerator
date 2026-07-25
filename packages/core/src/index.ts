@@ -7,6 +7,7 @@ export * from "./course/centerline.js";
 export * from "./course/cones.js";
 export * from "./course/loop.js";
 export * from "./geometry/builders.js";
+export * from "./geometry/guidance.js";
 export * from "./geometry/texture.js";
 export * from "./kn5/types.js";
 export * from "./kn5/encode.js";

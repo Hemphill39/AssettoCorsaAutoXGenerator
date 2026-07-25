@@ -184,6 +184,26 @@ export function App(): JSX.Element {
     if (result) setConesEdited(false);
   }
 
+  /**
+   * Guarantees the export reflects on-screen cone edits even if the user
+   * clicks through faster than the 250ms debounce — otherwise there's a brief
+   * window where what they see and what they'd export disagree, which is
+   * exactly the ambiguity this feature exists to avoid.
+   */
+  function goToExport(): void {
+    const last = lastBuiltRef.current;
+    if (last && conesEdited && cones !== last.cones) {
+      buildAndCommit({
+        courseWidth: courseWidthM,
+        lotMargin: lotMarginM,
+        guidanceLevel,
+        trackName,
+        conesOverride: cones,
+      });
+    }
+    setStage("export");
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -221,7 +241,7 @@ export function App(): JSX.Element {
             onLotMarginChange={setLotMarginM}
             onGuidanceLevelChange={setGuidanceLevel}
             onResetCones={resetCones}
-            onContinue={() => setStage("export")}
+            onContinue={goToExport}
             onBack={() => setStage("add-runs")}
           />
         )}
