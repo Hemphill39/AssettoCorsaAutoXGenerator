@@ -262,6 +262,16 @@ fixtures/              run1-8.csv and trimmed test fixtures
 | 7 | Parking lot themes | Sonnet | ≥3 themes |
 | 8 | OSM / Maps lot picker | Sonnet | real lot outlines |
 
+**Status:** phases 0-5 complete and confirmed in-game — the track installs,
+loads, drives, and lap/sector timing works, with sector 1 equal to the real
+autocross run. Phases 6-8 are not started. See `TESTING.md` for what real
+driving confirmed and what it corrected.
+
+Ideas raised by testing but not built: chalk outlines around each cone base
+(the signature look of an autocross lot, and probably better guidance than
+painted edge lines), the 2-second cone penalty, start/finish timing lights, a
+finish chute, and a course-walk mode.
+
 **Delegation rule:** binary encoders, coordinate transforms, and course inference stay
 with me — these are areas where "looks plausible" and "is correct" diverge silently.
 UI scaffolding, file I/O, ini/json writers, and test boilerplate go to Sonnet once

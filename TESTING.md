@@ -53,16 +53,39 @@ Found and fixed from that session:
 | Couldn't add AI opponents | Only one `AC_PIT_0`/`AC_START_0` and `pitboxes: 1`, so AC capped the field at one car | 12-slot staggered grid |
 | Hard to tell where the course goes | 22 m cone spacing with no continuous edge to follow | Painted edge lines, cones 116 → 172, `guidance` presets |
 
-Still unconfirmed: **sector 1 timing** (should be ≈ the real run time, 1:18.300)
-and whether the inferred course shape matches the real event — the latter can
-only be judged by someone who was there.
+Later sessions additionally confirmed:
+
+- **Lap and sector timing work.** Crossing the start line opens the lap, the
+  finish line closes sector 1, and the return path brings you round to go again
+  without reloading. This was the central design claim.
+- Slaloms read correctly from the car once their cones were laid in a line and
+  the painted corridor ran straight through them.
+- The Windows package builds from macOS and runs.
+
+Found and fixed from those sessions:
+
+| Reported | Cause | Fix |
+|---|---|---|
+| Cone editor let you add but never move a cone | Markers are ~1 px at usable zoom; selection needed a ray/mesh hit | Screen-space picking within 18 px, markers scale with zoom |
+| Slalom cones looked wrong | Each was offset from the driven apex by a fixed 2.5 m, so a wider weave produced a zigzag instead of a row | Cones placed on the weave's centre axis via a [1,2,1]/4 filter over apexes |
+| Timing dead; started off to one side | Left-handed coordinate frame mirrored the world, which also swapped `AC_TIME_n_L`/`_R` so gates never fired | Corrected to AC's right-handed frame (Z = south) |
+| Still started off to one side | Practice spawns at `AC_PIT_0`, not `AC_START_0` | Pit box 0 placed on the course entrance |
+| White lines wrong near a slalom's ends | Gates built from the driven line, paint from the cone axis | One shared corridor line for both |
+| Pointer cones invisible | Aimed down the tangent, so seen end-on | Aimed ~22 m ahead, plus an upright companion cone |
+
+**Still unverified:** whether the reconstructed course shape matches the real
+event. Only someone who was at the event can judge that, and the question became
+meaningful only after the mirroring bug was fixed — before that every turn was
+reversed.
 
 ## Known-unverified details
 
 Neither is fatal, both are cosmetic-to-minor — listed so they are not mistaken for bugs:
 
-- **No minimap.** `map.png`/`map.ini` are deliberately not generated yet. CM can
-  render a minimap itself. Not a load failure.
+- **`map.ini` offsets.** The minimap image and `map.ini` are generated from one
+  shared transform, so they agree with each other, but AC's own world→pixel
+  formula was never confirmed against a stock Kunos track. If the car's dot sits
+  offset on the minimap, that is why. Purely cosmetic.
 - **AI line field offsets.** Two community implementations disagree on
   `sideLeft`/`sideRight` positions. If AI cars drive strangely, that is the cause.
   Does not affect a human driver.

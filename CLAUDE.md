@@ -14,7 +14,7 @@ fusion", or "Menger curvature" in anything user-facing.
 ## Commands
 
 ```bash
-npm test                  # vitest, whole suite (currently 127 tests)
+npm test                  # vitest, whole suite (currently 138 tests)
 npm run typecheck         # core only
 npx tsc --noEmit -p apps/desktop/tsconfig.json   # desktop app
 
@@ -34,7 +34,7 @@ packages/core/     pure TypeScript, no DOM, no runtime dependencies
   csv/             parse 10 Hz GPS logs; split sessions into runs
   geo/             geodetic -> local tangent plane; AC <-> three.js
   course/          centreline fusion, curvature, slalom detection, cone layout,
-                   loop closure
+                   corridor line, loop closure
   geometry/        mesh builders, PNG encoder, rasteriser, guidance paint
   kn5/             .kn5 model encoder + strict decoder (format v5)
   ai/              fast_lane.ai racing line encoder (format v7)
@@ -67,8 +67,35 @@ means an invisible surface and a car that falls through the world. Use
 `orientedTriangle()` in `geometry/builders.ts`; it derives the correct order from
 a desired normal rather than guessing.
 
+**One corridor line, shared.** `course/corridor.ts` defines where the edges of
+the course are. Cone gates and painted edge lines must *both* be built from it.
+They were not, once: gates used the driven line while the paint followed the
+slalom cone axis, and around a slalom's entry and exit the cones sat metres from
+the paint beside them. To a driver that reads as the paint being wrong. Gates are
+also suppressed across the whole blended region (`isBlended`), not a fixed
+distance.
+
+Through a slalom the corridor follows the cone axis rather than the driven line,
+because the driven line there is a wave while the cones sit in a straight row.
+
 **Practice sessions spawn at `AC_PIT_0`, not `AC_START_0`.** Pit box 0 therefore
-sits on the course entrance deliberately.
+sits on the course entrance deliberately. Both earlier reports of "I start off to
+one side" were this.
+
+**Timing gates are deliberately much wider than the cone corridor.** A gate only
+fires if the car crosses the segment between `_L` and `_R`; sized to the cones, a
+driver running wide misses it and the lap never registers.
+
+**`AC_TIME_n_L` must be on the true left of travel.** AC decides crossing
+direction from the L/R ordering — reverse it and the gate never fires at all.
+This is the most commonly cited cause of dead timing on custom tracks, and it is
+exactly what the left-handed coordinate bug produced. There is a regression test.
+
+**Pointer cones are distinguished by `forward`.** A `pointer` cone *with* a
+`forward` is laid on its side aiming that way; one *without* renders upright as
+its companion. Pointers aim at the corridor ~22 m ahead, not down the local
+tangent: aimed at the tangent they point straight away from an approaching driver
+and are seen end-on, which makes them near-invisible.
 
 **Timing design.** `AC_TIME_0` at the course start, `AC_TIME_1` at the finish, so
 **AC's sector 1 time is exactly the autocross run** and is directly comparable to
@@ -89,7 +116,8 @@ them guarded on `python3` being present so the suite never hard-fails without it
 Prefer tests that encode *why* a thing must hold. Several here exist because a
 real bug shipped: slalom cones must be collinear regardless of weave amplitude;
 pole must be laterally centred on the course; guidance paint must never carry a
-physics name prefix.
+physics name prefix; gates must straddle the corridor line the paint follows;
+`AC_TIME_n_L` must be on the left.
 
 ## Verification discipline
 
@@ -101,6 +129,15 @@ Never describe an unverified detail as if it were confirmed.
 When a binary format is ambiguous and sources disagree, prefer the mature
 implementation, write down why in a comment, and flag it for in-game
 confirmation rather than quietly picking one.
+
+## Packaging
+
+`npm run pack:win` cross-compiles a Windows zip from macOS. Two things it needs
+and will not tell you clearly: `electronVersion` must be pinned in the build
+config, because npm workspaces hoists `electron` to the repo root where
+electron-builder does not look; and the config is schema-validated, so `"//"`
+comment keys are rejected outright. The output is unsigned, so Windows SmartScreen
+warns on first launch.
 
 ## Style
 

@@ -34,11 +34,20 @@ npm run dev
    was actually set out
 3. **Export** — install straight into Assetto Corsa, or save a `.zip`
 
-Build a Windows version:
+### Building for Windows
+
+Cross-compiles from macOS or Linux — no Windows machine needed:
 
 ```bash
-npm run pack:win     # produces apps/desktop/release/
+npm run pack:win
 ```
+
+Produces `apps/desktop/release/AutocrossTrackBuilder-<version>-win-x64.zip`
+(~106 MB). Unpack it anywhere and run `Autocross Track Builder.exe`; there is no
+installer and no admin rights required.
+
+The build is unsigned, so Windows SmartScreen warns on first launch —
+*More info* → *Run anyway*.
 
 ### Command line
 
@@ -74,8 +83,10 @@ gives you:
 | **Training** | As above, with cones packed tighter still |
 
 Direction is marked with **pointer cones** — a cone laid on its side aiming the
-way to go — at corners and anywhere the course could be read two ways, which is
-how autocross actually marks it.
+way to go, with an upright cone beside it — at corners, at slalom entries, and
+anywhere the course could be read two ways. That is how autocross actually marks
+it. Pointers aim at where the course goes *next* rather than straight ahead,
+since a cone aimed directly away from you is seen end-on and reads as nothing.
 
 ## Input format
 
@@ -85,6 +96,15 @@ firmware revisions are fine. Only latitude and longitude are strictly required.
 
 Files containing a whole session are split into individual runs automatically, on
 clock gaps and on sustained standstills.
+
+## Status
+
+Confirmed by driving the generated track in Assetto Corsa: it installs, loads and
+drives; the car sits correctly on the surface; **lap and sector timing work**, so
+sector 1 really is the autocross run; and slaloms read correctly from the car.
+
+Still unverified: whether the reconstructed course matches the real event. Only
+someone who was there can judge that — see the accuracy note above.
 
 ## Project layout
 
@@ -102,7 +122,7 @@ in-game and what has not.
 ## Development
 
 ```bash
-npm test        # 127 tests
+npm test        # 138 tests
 npm run build
 ```
 
