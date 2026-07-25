@@ -3,7 +3,8 @@
 Turn real autocross GPS logs into drivable Assetto Corsa tracks, so a course you can
 only run three times a weekend becomes one you can run all winter.
 
-**Status:** planning complete, spike validated, implementation starting.
+**Status:** built and confirmed in-game — installs, drives, and lap/sector timing
+works. See `TESTING.md` for what real driving verified and corrected.
 
 ---
 
@@ -69,8 +70,17 @@ Two properties make procedural generation much easier than expected:
 Constraints: max 2^16 vertices per mesh (indices are `uint16`), so large surfaces must be
 split. Meshes cannot have children.
 
-Coordinate system: AC is **Y-up**. Blender→AC conversion is `(x, z, −y)`; since we
-generate geometry directly we simply author in AC space and skip the conversion.
+Coordinate system: AC is **right-handed and Y-up — X = east, Y = up, Z = south.**
+The Blender→AC conversion `(x, y, z) → (x, z, −y)` has determinant **+1**, so it
+preserves Blender's right-handed orientation. A right-handed frame with X = east
+and Y = up then forces `Z = east × up = south`.
+
+This matters more than it looks. Projecting north to +Z makes `(east, up, north)`
+— a *left*-handed triple — and the engine renders the whole course as a mirror
+image, turning every left turn into a right turn. It still looks like a perfectly
+plausible autocross course, which is exactly why the mistake survived several
+rounds of testing. It also swaps `AC_TIME_n_L`/`_R`, which stops the timing gates
+firing at all.
 
 ### 2.2 `fast_lane.ai` format version 7 — CONFIRMED (from actools source)
 
