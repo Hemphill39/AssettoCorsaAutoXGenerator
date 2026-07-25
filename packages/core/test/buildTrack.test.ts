@@ -253,10 +253,21 @@ describe("starting grid", () => {
     expect(hotlap.position.z).toBeCloseTo(pole.position.z, 3);
   });
 
-  it("keeps pit boxes clear of the grid", () => {
+  it("puts pit box 0 on the course entrance, because practice spawns in the pits", () => {
     const result = buildTrack(sources);
     const model = decodeKn5(result.files.find((f) => f.path.endsWith(".kn5"))!.data);
-    for (let slot = 0; slot < 12; slot++) {
+    const pole = model.dummies.find((d) => d.name === "AC_START_0")!;
+    const pit0 = model.dummies.find((d) => d.name === "AC_PIT_0")!;
+    // Practice sessions spawn at the pit box, so it must coincide with pole —
+    // otherwise the driver starts off to one side of the course.
+    expect(pit0.position.x).toBeCloseTo(pole.position.x, 3);
+    expect(pit0.position.z).toBeCloseTo(pole.position.z, 3);
+  });
+
+  it("keeps the remaining pit boxes clear of the grid", () => {
+    const result = buildTrack(sources);
+    const model = decodeKn5(result.files.find((f) => f.path.endsWith(".kn5"))!.data);
+    for (let slot = 1; slot < 12; slot++) {
       const start = model.dummies.find((d) => d.name === `AC_START_${slot}`)!;
       const pit = model.dummies.find((d) => d.name === `AC_PIT_${slot}`)!;
       const gap = Math.hypot(start.position.x - pit.position.x, start.position.z - pit.position.z);

@@ -213,11 +213,20 @@ describe("layoutCones", () => {
   });
 
   it("puts the left cone on the left of travel", () => {
-    // Heading north, so left of travel is west (negative X).
+    // AC space is X = east, Z = south, so increasing Z means heading south —
+    // and left of south is east, +X.
     const positions: Vec3[] = [];
     for (let i = 0; i <= 200; i++) positions.push({ x: 0, y: 0, z: i });
     const { cones } = layoutCones(centerlineFrom(positions), { gateWidth: 10 });
     for (const cone of cones) {
+      if (cone.side === -1) expect(cone.position.x).toBeCloseTo(5, 6);
+      if (cone.side === 1) expect(cone.position.x).toBeCloseTo(-5, 6);
+    }
+
+    // Heading north (decreasing Z), left of travel is west, -X.
+    const northbound: Vec3[] = [];
+    for (let i = 0; i <= 200; i++) northbound.push({ x: 0, y: 0, z: -i });
+    for (const cone of layoutCones(centerlineFrom(northbound), { gateWidth: 10 }).cones) {
       if (cone.side === -1) expect(cone.position.x).toBeCloseTo(-5, 6);
       if (cone.side === 1) expect(cone.position.x).toBeCloseTo(5, 6);
     }

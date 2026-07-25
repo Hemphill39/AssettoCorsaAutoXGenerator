@@ -14,15 +14,14 @@ describe("AC <-> three.js coordinate mapping", () => {
     expect(sceneToAc(acToScene(original))).toEqual(original);
   });
 
-  it("flips handedness by negating exactly one axis", () => {
+  it("preserves every axis, since both spaces are right-handed", () => {
     const scene = acToScene({ x: 5, y: 2, z: 9 });
     expect(scene.x).toBe(5);
     expect(scene.y).toBe(2);
-    expect(scene.z).toBe(-9);
+    expect(scene.z).toBe(9);
   });
 
-  it("reverses turn direction, which is what prevents a mirrored preview", () => {
-    // A right turn in AC space: heading north, curving east.
+  it("PRESERVES turn direction, which is what prevents a mirrored preview", () => {
     const a = { x: 0, y: 0, z: 0 };
     const b = { x: 0, y: 0, z: 10 };
     const c = { x: 5, y: 0, z: 18 };
@@ -31,19 +30,15 @@ describe("AC <-> three.js coordinate mapping", () => {
     const sceneSign = turnSign(acToScene(a), acToScene(b), acToScene(c));
 
     expect(acSign).not.toBe(0);
-    // The sign MUST flip. If it did not, we would be rendering a mirror image.
-    expect(sceneSign).toBe(-acSign);
+    // Both spaces are right-handed, so a flip here would mean the preview is
+    // mirrored relative to the exported track.
+    expect(sceneSign).toBe(acSign);
   });
 
   it("orients a top-down view as a map: north up, east right", () => {
-    // With camera up = (0,0,-1), screen-up is the -Z scene direction.
-    const north = acToScene({ x: 0, y: 0, z: 1 });
-    const east = acToScene({ x: 1, y: 0, z: 0 });
-
-    // North must land on the screen-up axis, i.e. negative scene Z.
-    expect(north.z).toBeLessThan(0);
+    // AC world space is X = east, Z = south, so north is -Z.
     expect(TOP_DOWN_UP.z).toBe(-1);
-    // East must remain screen-right, i.e. positive scene X.
+    const east = acToScene({ x: 1, y: 0, z: 0 });
     expect(east.x).toBeGreaterThan(0);
   });
 
@@ -52,7 +47,7 @@ describe("AC <-> three.js coordinate mapping", () => {
       { x: 1, y: 2, z: 3 },
       { x: 4, y: 5, z: 6 },
     ]);
-    expect(Array.from(array)).toEqual([1, 2, -3, 4, 5, -6]);
+    expect(Array.from(array)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("preserves distances and course shape for the real run", () => {

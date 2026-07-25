@@ -185,17 +185,19 @@ function buildTimingDummies(
       z: start.z - startHeading.z * back + right.z * lateral,
     };
     grid.push({ name: `AC_START_${slot}`, position, yaw: startYaw });
-    // Pit boxes sit well off to the side so they never overlap the grid or the
-    // course itself.
-    grid.push({
-      name: `AC_PIT_${slot}`,
-      position: {
-        x: position.x + right.x * 14,
-        y: 0,
-        z: position.z + right.z * 14,
-      },
-      yaw: startYaw,
-    });
+    // AC spawns the player in their PIT box for practice sessions, not on the
+    // grid, so pit 0 has to be the good spot: right on the course centreline at
+    // the entrance. Only the remaining boxes move aside, and they step further
+    // back rather than sideways so a full grid still fits on the pavement.
+    const pit: Vec3 =
+      slot === 0
+        ? { x: position.x, y: 0, z: position.z }
+        : {
+            x: position.x + right.x * 16 - startHeading.x * 6,
+            y: 0,
+            z: position.z + right.z * 16 - startHeading.z * 6,
+          };
+    grid.push({ name: `AC_PIT_${slot}`, position: pit, yaw: startYaw });
   }
 
   return [

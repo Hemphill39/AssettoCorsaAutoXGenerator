@@ -155,8 +155,10 @@ describe("Projector", () => {
 });
 
 describe("handedness", () => {
+  // AC world space is right-handed: X = east, Y = up, Z = south. So north
+  // is -Z. See geo/project.ts for why Z is south rather than north.
   it("puts east on the right when facing north", () => {
-    const r = rightOf({ x: 0, y: 0, z: 1 });
+    const r = rightOf({ x: 0, y: 0, z: -1 });
     expect(r.x).toBeCloseTo(1, 9);
     expect(r.z).toBeCloseTo(0, 9);
   });
@@ -164,7 +166,7 @@ describe("handedness", () => {
   it("puts south on the right when facing east", () => {
     const r = rightOf({ x: 1, y: 0, z: 0 });
     expect(r.x).toBeCloseTo(0, 9);
-    expect(r.z).toBeCloseTo(-1, 9);
+    expect(r.z).toBeCloseTo(1, 9);
   });
 
   it("makes left the exact opposite of right", () => {

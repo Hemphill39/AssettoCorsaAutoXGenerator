@@ -7,7 +7,17 @@ import type { Sample, Vec3 } from "../types.js";
  * tangent plane anchored at the course centroid is accurate to well under a
  * centimetre — far below GPS noise — while keeping the maths trivial.
  *
- * Output is Assetto Corsa world space: X = east, Y = up, Z = north.
+ * Output is Assetto Corsa world space: **X = east, Y = up, Z = south.**
+ *
+ * Z is south, not north, and that is not arbitrary. Assetto Corsa is
+ * right-handed: the reference Blender exporter maps (x, y, z) -> (x, z, -y),
+ * whose determinant is +1, so it preserves Blender's right-handed orientation.
+ * A right-handed frame with X = east and Y = up forces Z = east x up = south.
+ *
+ * Writing north as +Z — as this originally did — makes (east, up, north), a
+ * *left*-handed triple, which the engine renders as a mirror image: every left
+ * turn becomes a right turn. The course still looks entirely plausible, which is
+ * exactly what makes the mistake dangerous.
  */
 
 const WGS84_A = 6_378_137.0; // semi-major axis, metres
@@ -64,14 +74,15 @@ export class Projector {
     return {
       x: (sample.lon - this.anchor.lon) * this.perLon,
       y: flatten ? 0 : (sample.elev ?? this.anchor.elev) - this.anchor.elev,
-      z: (sample.lat - this.anchor.lat) * this.perLat,
+      // Negated: +Z is south (see the handedness note above).
+      z: -(sample.lat - this.anchor.lat) * this.perLat,
     };
   }
 
   /** Inverse projection, for round-tripping back to map coordinates. */
   unproject(v: Vec3): { lat: number; lon: number; elev: number } {
     return {
-      lat: this.anchor.lat + v.z / this.perLat,
+      lat: this.anchor.lat - v.z / this.perLat,
       lon: this.anchor.lon + v.x / this.perLon,
       elev: this.anchor.elev + v.y,
     };
@@ -79,17 +90,16 @@ export class Projector {
 }
 
 /**
- * Right-hand side of a heading, in AC's left-handed Y-up space.
+ * Right-hand side of a heading, in AC's right-handed Y-up space.
  *
- * Derivation: AC is left-handed with X right, Y up, Z forward, so a body facing
- * +Z has its right hand toward +X. The rotation satisfying that is
- * (fx, fz) -> (fz, -fx). Sanity check: facing east (+X) yields (0,0,-1) = south,
- * which is correct. Because we map east→X and north→Z, this also matches
- * real-world geography, so `AC_TIME_n_L` placement needs no mirroring.
+ * With X = east, Y = up, Z = south: a car heading north is (0, 0, -1) and its
+ * right hand points east, (1, 0, 0). The map satisfying that is
+ * (fx, fz) -> (-fz, fx). Sanity check: heading east (1,0,0) gives (0,0,1) =
+ * south, which is correct.
  */
 export function rightOf(forward: Vec3): Vec3 {
   const len = Math.hypot(forward.x, forward.z) || 1;
-  return { x: forward.z / len, y: 0, z: -forward.x / len };
+  return { x: -forward.z / len, y: 0, z: forward.x / len };
 }
 
 export function leftOf(forward: Vec3): Vec3 {
