@@ -3,8 +3,8 @@ import {
   buildEdgeLines,
   buildGuidanceMeshes,
   coneSpacingFor,
-  corridorCenterline,
 } from "../src/geometry/guidance.js";
+import { corridorCenterline } from "../src/course/corridor.js";
 import { computeCurvature } from "../src/course/centerline.js";
 import type { CenterlinePoint, Vec3 } from "../src/types.js";
 

@@ -6,6 +6,7 @@ import { splitRuns } from "../src/csv/splitRuns.js";
 import { computeCurvature, fuseCenterline, headingAt } from "../src/course/centerline.js";
 import { buildReturnPath } from "../src/course/loop.js";
 import { classifySection, detectSlaloms, layoutCones, DEFAULT_CONE_OPTIONS } from "../src/course/cones.js";
+import { isBlended } from "../src/course/corridor.js";
 import type { CenterlinePoint, Run, Vec3 } from "../src/types.js";
 
 const FIXTURE = fileURLToPath(new URL("../../../fixtures/run1-8.csv", import.meta.url));
@@ -428,5 +429,75 @@ describe("pointer cones", () => {
     }
     const cones = layoutCones(centerlineFrom(circle), { pointerCones: false }).cones;
     expect(cones.filter((c) => c.type === "pointer")).toHaveLength(0);
+  });
+});
+
+describe("cones and paint agree through slaloms", () => {
+  /**
+   * Cone gates and painted edge lines must be built from the same corridor line.
+   * They were not: gates used the driven line while the paint followed the cone
+   * axis, so around a slalom's entry and exit the gate cones sat metres away from
+   * the paint beside them and the lines read as wrong.
+   */
+  function weave(amplitude = 3, wavelength = 36, samples = 500): CenterlinePoint[] {
+    const positions: Vec3[] = [];
+    for (let i = 0; i <= samples; i++) {
+      const z = i * 0.5;
+      const inSlalom = z > 60 && z < 190;
+      positions.push({
+        x: inSlalom ? amplitude * Math.sin((z / wavelength) * Math.PI * 2) : 0,
+        y: 0,
+        z,
+      });
+    }
+    return centerlineFrom(positions);
+  }
+
+  it("never places a gate inside a slalom or its blend ramps", () => {
+    const points = weave();
+    const { cones, slalomSpans } = layoutCones(points);
+    expect(slalomSpans.length).toBeGreaterThanOrEqual(1);
+
+    for (const cone of cones) {
+      if (cone.type !== "gate" && cone.type !== "start" && cone.type !== "finish") continue;
+      expect(isBlended(slalomSpans, cone.station)).toBe(false);
+    }
+  });
+
+  it("places every gate on the corridor line the paint follows", () => {
+    const points = weave();
+    const { cones, corridor } = layoutCones(points, { gateWidth: 9 });
+
+    // Each gate pair must straddle its corridor station at exactly half-width.
+    const pairs = new Map<number, typeof cones>();
+    for (const cone of cones) {
+      if (cone.side === 0) continue;
+      const list = pairs.get(cone.station) ?? [];
+      list.push(cone);
+      pairs.set(cone.station, list);
+    }
+
+    for (const [station, pair] of pairs) {
+      if (pair.length !== 2) continue;
+      const mid = {
+        x: (pair[0]!.position.x + pair[1]!.position.x) / 2,
+        z: (pair[0]!.position.z + pair[1]!.position.z) / 2,
+      };
+      const onCorridor = corridor[station]!;
+      expect(Math.hypot(mid.x - onCorridor.x, mid.z - onCorridor.z)).toBeLessThan(0.01);
+    }
+  });
+
+  it("marks which way to enter each slalom with a pointer cone", () => {
+    const points = weave();
+    const { cones, slalomSpans } = layoutCones(points);
+
+    for (const span of slalomSpans) {
+      const entryPointer = cones.find(
+        (c) => c.type === "pointer" && c.station < span.from && c.station > span.from - 60,
+      );
+      expect(entryPointer).toBeDefined();
+      expect(entryPointer!.forward).toBeDefined();
+    }
   });
 });

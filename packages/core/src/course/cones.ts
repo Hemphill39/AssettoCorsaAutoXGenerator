@@ -1,6 +1,15 @@
 import { headingAt } from "./centerline.js";
+import {
+  blendMargin,
+  corridorCenterline,
+  headingOfLine,
+  isBlended,
+  type SlalomSpan,
+} from "./corridor.js";
 import { leftOf, rightOf } from "../geo/project.js";
 import type { CenterlinePoint, Vec3 } from "../types.js";
+
+export type { SlalomSpan } from "./corridor.js";
 
 /**
  * Infers a cone layout from a reconstructed centreline.
@@ -141,13 +150,11 @@ export interface ConeLayout {
   slalomStations: Set<number>;
   /** Inclusive station ranges covered by each detected slalom. */
   slalomSpans: SlalomSpan[];
-}
-
-export interface SlalomSpan {
-  from: number;
-  to: number;
-  /** The cone line itself: the axis the driver weaves around. */
-  axis: Vec3[];
+  /**
+   * The line gates were built from — straight through slaloms. Guidance paint
+   * must use this same line, or cones and paint disagree.
+   */
+  corridor: Vec3[];
 }
 
 /**
@@ -239,23 +246,6 @@ export function layoutCones(
   const slalomStations = new Set<number>();
   const half = opt.gateWidth / 2;
 
-  const addGate = (station: number, type: ConeType): void => {
-    const point = points[station]!;
-    const heading = headingAt(points, station);
-    cones.push({
-      position: offsetFrom(point.position, leftOf(heading), half),
-      type,
-      side: -1,
-      station,
-    });
-    cones.push({
-      position: offsetFrom(point.position, rightOf(heading), half),
-      type,
-      side: 1,
-      station,
-    });
-  };
-
   const slalomSpans: SlalomSpan[] = [];
 
   if (opt.detectSlaloms) {
@@ -281,6 +271,66 @@ export function layoutCones(
     }
   }
 
+  /**
+   * Gates are built from the corridor line, not the driven line.
+   *
+   * Through a slalom (and its blend ramps) the corridor follows the cone axis
+   * while the driven line weaves. Placing gates on the driven line there put
+   * cones several metres off the painted edges beside them, which reads as the
+   * paint being wrong.
+   */
+  const corridor = corridorCenterline(points, slalomSpans);
+
+  const addGate = (station: number, type: ConeType): void => {
+    const centre = corridor[station]!;
+    const heading = headingOfLine(corridor, station);
+    cones.push({
+      position: offsetFrom(centre, leftOf(heading), half),
+      type,
+      side: -1,
+      station,
+    });
+    cones.push({
+      position: offsetFrom(centre, rightOf(heading), half),
+      type,
+      side: 1,
+      station,
+    });
+  };
+
+  /**
+   * A pointer cone at each slalom entry, on the side the driver takes the first
+   * cone. Which way you enter a slalom determines every pass after it, so real
+   * courses mark it.
+   */
+  if (opt.pointerCones) {
+    for (const span of slalomSpans) {
+      const firstAxis = span.axis[0];
+      const firstApex = points[span.from]?.position;
+      if (!firstAxis || !firstApex) continue;
+
+      // The driver's offset from the axis at the first cone gives the side.
+      const offset = { x: firstApex.x - firstAxis.x, z: firstApex.z - firstAxis.z };
+      const len = Math.hypot(offset.x, offset.z);
+      if (len < 0.2) continue;
+
+      const margin = blendMargin(span);
+      const entry = Math.max(0, span.from - Math.max(4, Math.floor(margin / 2)));
+      const heading = headingOfLine(corridor, entry);
+      cones.push({
+        position: offsetFrom(
+          corridor[entry]!,
+          { x: offset.x / len, y: 0, z: offset.z / len },
+          half + 1.2,
+        ),
+        type: "pointer",
+        side: 0,
+        station: entry,
+        forward: heading,
+      });
+    }
+  }
+
   addGate(0, "start");
 
   // Walk the course placing gates, skipping any stretch already covered by a
@@ -298,10 +348,9 @@ export function layoutCones(
 
     if (point.distance - lastPlacedDistance < spacing) continue;
 
-    const nearSlalom = [...slalomStations].some(
-      (station) => Math.abs(points[station]!.distance - point.distance) < 12,
-    );
-    if (nearSlalom) {
+    // The blend ramps count too: a gate there would sit on a different line
+    // from the paint running alongside it.
+    if (isBlended(slalomSpans, i)) {
       lastPlacedDistance = point.distance;
       continue;
     }
@@ -342,5 +391,5 @@ export function layoutCones(
     }
   }
 
-  return { cones, slalomStations, slalomSpans };
+  return { cones, slalomStations, slalomSpans, corridor };
 }
