@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildDirectionArrows,
   buildEdgeLines,
   buildGuidanceMeshes,
   coneSpacingFor,
@@ -77,34 +76,6 @@ describe("buildEdgeLines", () => {
   });
 });
 
-describe("buildDirectionArrows", () => {
-  it("spaces chevrons along the course at the requested interval", () => {
-    const mesh = buildDirectionArrows(straight(), 0, 25);
-    // 200 m at 25 m spacing, 3 vertices per triangle.
-    expect(mesh.vertices.length / 3).toBeGreaterThanOrEqual(6);
-    expect(mesh.vertices.length / 3).toBeLessThanOrEqual(9);
-  });
-
-  it("points chevrons along the direction of travel", () => {
-    const mesh = buildDirectionArrows(straight(), 0, 50);
-    // Heading north, so each apex must be north of its own base.
-    for (let i = 0; i < mesh.vertices.length; i += 3) {
-      const zs = [
-        mesh.vertices[i]!.position.z,
-        mesh.vertices[i + 1]!.position.z,
-        mesh.vertices[i + 2]!.position.z,
-      ];
-      const apex = Math.max(...zs);
-      const base = Math.min(...zs);
-      expect(apex - base).toBeGreaterThan(1);
-    }
-  });
-
-  it("emits nothing for a course shorter than one interval", () => {
-    expect(buildDirectionArrows(straight(10), 0, 50).vertices).toHaveLength(0);
-  });
-});
-
 describe("guidance levels", () => {
   it("adds nothing at all in realistic mode", () => {
     expect(buildGuidanceMeshes(straight(), 4.5, 0, { level: "realistic" })).toHaveLength(0);
@@ -116,9 +87,9 @@ describe("guidance levels", () => {
     expect(meshes[0]!.name).toBe("paint_edges");
   });
 
-  it("adds edge lines and chevrons when training", () => {
+  it("adds edge lines when training, with direction left to pointer cones", () => {
     const meshes = buildGuidanceMeshes(straight(), 4.5, 0, { level: "training" });
-    expect(meshes.map((m) => m.name)).toEqual(["paint_edges", "paint_arrows"]);
+    expect(meshes.map((m) => m.name)).toEqual(["paint_edges"]);
   });
 
   it("keeps guidance non-physical so it never affects the car", () => {

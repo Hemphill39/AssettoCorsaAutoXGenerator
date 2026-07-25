@@ -10,7 +10,11 @@ import type { CenterlinePoint, Vec3 } from "../types.js";
  * starting point.
  */
 
-export type ConeType = "gate" | "slalom" | "start" | "finish";
+/**
+ * `pointer` is a cone laid on its side pointing the way to go — standard
+ * autocross practice for marking direction where a course could be ambiguous.
+ */
+export type ConeType = "gate" | "slalom" | "start" | "finish" | "pointer";
 
 export interface Cone {
   position: Vec3;
@@ -19,6 +23,8 @@ export interface Cone {
   side: -1 | 0 | 1;
   /** Index into the centreline this cone was derived from. */
   station: number;
+  /** Direction a pointer cone indicates; unused by upright cones. */
+  forward?: Vec3;
 }
 
 export type SectionKind = "straight" | "sweeper" | "tight";
@@ -37,6 +43,10 @@ export interface ConeLayoutOptions {
   detectSlaloms: boolean;
   /** Minimum alternating peaks required before a section counts as a slalom. */
   minSlalomPeaks: number;
+  /** Lay pointer cones at direction changes. */
+  pointerCones: boolean;
+  /** Minimum gap between pointer cones, in metres. */
+  pointerSpacing: number;
 }
 
 export const DEFAULT_CONE_OPTIONS: ConeLayoutOptions = {
@@ -47,6 +57,8 @@ export const DEFAULT_CONE_OPTIONS: ConeLayoutOptions = {
   tightCurvature: 0.05, // radius 20 m
   detectSlaloms: true,
   minSlalomPeaks: 3,
+  pointerCones: true,
+  pointerSpacing: 20,
 };
 
 export function classifySection(curvature: number, opt: ConeLayoutOptions): SectionKind {
@@ -291,6 +303,36 @@ export function layoutCones(
   }
 
   addGate(points.length - 1, "finish");
+
+  /**
+   * Pointer cones at direction changes.
+   *
+   * Standard autocross practice: a cone laid on its side pointing where to go
+   * next, placed wherever the course could be read two ways. Laid just outside
+   * the corridor on the outside of the turn, where a driver looking ahead through
+   * the corner naturally sees it.
+   */
+  if (opt.pointerCones) {
+    let lastPointerAt = -Infinity;
+    for (let i = 2; i < points.length - 2; i++) {
+      const point = points[i]!;
+      if (slalomStations.has(i)) continue; // a slalom's own cones say which way
+      if (classifySection(point.curvature, opt) === "straight") continue;
+      if (point.distance - lastPointerAt < opt.pointerSpacing) continue;
+
+      const heading = headingAt(points, i);
+      // Positive curvature turns left, so the outside of the turn is to the right.
+      const outside = point.curvature > 0 ? rightOf(heading) : leftOf(heading);
+      cones.push({
+        position: offsetFrom(point.position, outside, half + 1.2),
+        type: "pointer",
+        side: 0,
+        station: i,
+        forward: heading,
+      });
+      lastPointerAt = point.distance;
+    }
+  }
 
   return { cones, slalomStations, slalomSpans };
 }

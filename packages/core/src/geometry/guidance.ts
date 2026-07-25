@@ -20,14 +20,11 @@ export interface GuidanceOptions {
   level: GuidanceLevel;
   /** Painted edge stripe width, in metres. */
   lineWidth: number;
-  /** Distance between direction chevrons, in metres. */
-  arrowSpacing: number;
 }
 
 export const DEFAULT_GUIDANCE: GuidanceOptions = {
   level: "guided",
   lineWidth: 0.15,
-  arrowSpacing: 25,
 };
 
 /** Cone spacing overrides per guidance level, in metres. */
@@ -114,44 +111,11 @@ export function buildEdgeLines(
 }
 
 /**
- * Chevrons pointing down the course.
- *
- * Answers "which way now?" at junctions where the course doubles back on itself
- * and two stretches of corridor sit side by side — the situation where cones
- * alone are genuinely ambiguous.
- */
-export function buildDirectionArrows(
-  points: CenterlinePoint[],
-  materialId: number,
-  spacing = DEFAULT_GUIDANCE.arrowSpacing,
-  name = "paint_arrows",
-): Kn5Mesh {
-  const builder = new MeshBuilder(name, materialId);
-  let nextAt = spacing;
-
-  for (let i = 1; i < points.length - 1; i++) {
-    const point = points[i]!;
-    if (point.distance < nextAt) continue;
-    nextAt = point.distance + spacing;
-
-    const forward = headingAt(points, i);
-    const right = rightOf(forward);
-    const centre = point.position;
-
-    // A solid triangle: 1.6 m long, 1.2 m across the base.
-    const apex = offsetPoint(centre, forward, 1.6);
-    const baseLeft = offsetPoint(offsetPoint(centre, right, -0.6), forward, -0.4);
-    const baseRight = offsetPoint(offsetPoint(centre, right, 0.6), forward, -0.4);
-
-    builder.addTriangle(baseLeft, baseRight, apex, UP, 2);
-  }
-  return builder.build({ castShadows: false });
-}
-
-/**
  * Meshes for a guidance level.
  *
- * "realistic" returns nothing — cones only, as the sport actually is.
+ * "realistic" returns nothing — cones only, as the sport actually is. Direction
+ * is conveyed by pointer cones (see course/cones.ts), which are how autocross
+ * actually marks it, rather than by painted arrows we invented.
  */
 export function buildGuidanceMeshes(
   points: CenterlinePoint[],
@@ -166,8 +130,5 @@ export function buildGuidanceMeshes(
   const meshes = [
     buildEdgeLines(points, halfWidth, paintMaterialId, opt.lineWidth, "paint_edges", slalomSpans),
   ];
-  if (opt.level === "training") {
-    meshes.push(buildDirectionArrows(points, paintMaterialId, opt.arrowSpacing));
-  }
   return meshes;
 }

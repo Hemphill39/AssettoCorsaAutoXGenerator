@@ -207,3 +207,60 @@ describe("hand-edited cones", () => {
     expect(result.warnings.join(" ")).toMatch(/4 hand-placed cones/);
   });
 });
+
+describe("starting grid", () => {
+  /**
+   * The driver should always begin lined up with the course entrance, behind the
+   * start line, so that crossing it starts sector 1 — the autocross run — and
+   * they can keep looping via the return path. Pole was previously offset 3 m to
+   * one side, which put the car beside the course rather than on it.
+   */
+  it("puts pole on the course centreline, not off to one side", () => {
+    const result = buildTrack(sources);
+    const model = decodeKn5(result.files.find((f) => f.path.endsWith(".kn5"))!.data);
+
+    const pole = model.dummies.find((d) => d.name === "AC_START_0")!;
+    const gateL = model.dummies.find((d) => d.name === "AC_TIME_0_L")!;
+    const gateR = model.dummies.find((d) => d.name === "AC_TIME_0_R")!;
+    const lineCentre = {
+      x: (gateL.position.x + gateR.position.x) / 2,
+      z: (gateL.position.z + gateR.position.z) / 2,
+    };
+
+    // Pole must be laterally centred on the start line: the perpendicular
+    // distance from the course axis should be ~0.
+    const axis = {
+      x: gateR.position.x - gateL.position.x,
+      z: gateR.position.z - gateL.position.z,
+    };
+    const axisLen = Math.hypot(axis.x, axis.z);
+    const toPole = { x: pole.position.x - lineCentre.x, z: pole.position.z - lineCentre.z };
+    const lateral = Math.abs((toPole.x * axis.x + toPole.z * axis.z) / axisLen);
+    expect(lateral).toBeLessThan(0.5);
+
+    // And it must be behind the line, not past it.
+    const behind = Math.hypot(toPole.x, toPole.z);
+    expect(behind).toBeGreaterThan(5);
+    expect(behind).toBeLessThan(30);
+  });
+
+  it("spawns hotlap starts at the same centred entrance", () => {
+    const result = buildTrack(sources);
+    const model = decodeKn5(result.files.find((f) => f.path.endsWith(".kn5"))!.data);
+    const pole = model.dummies.find((d) => d.name === "AC_START_0")!;
+    const hotlap = model.dummies.find((d) => d.name === "AC_HOTLAP_START_0")!;
+    expect(hotlap.position.x).toBeCloseTo(pole.position.x, 3);
+    expect(hotlap.position.z).toBeCloseTo(pole.position.z, 3);
+  });
+
+  it("keeps pit boxes clear of the grid", () => {
+    const result = buildTrack(sources);
+    const model = decodeKn5(result.files.find((f) => f.path.endsWith(".kn5"))!.data);
+    for (let slot = 0; slot < 12; slot++) {
+      const start = model.dummies.find((d) => d.name === `AC_START_${slot}`)!;
+      const pit = model.dummies.find((d) => d.name === `AC_PIT_${slot}`)!;
+      const gap = Math.hypot(start.position.x - pit.position.x, start.position.z - pit.position.z);
+      expect(gap).toBeGreaterThan(8);
+    }
+  });
+});

@@ -111,6 +111,14 @@ function textFile(path: string, contents: string): TrackFile {
 }
 
 /**
+ * How far back from the start line cars spawn, in metres.
+ *
+ * Far enough to be clearly before the line — so crossing it starts sector 1 —
+ * but close enough to launch from a near standstill, as in real autocross.
+ */
+const ENTRY_DISTANCE = 14;
+
+/**
  * Timing and spawn objects.
  *
  * Gate 0 sits at the course start (the lap line) and gate 1 at the course
@@ -165,21 +173,26 @@ function buildTimingDummies(
    */
   const grid: Kn5Dummy[] = [];
   for (let slot = 0; slot < gridSlots; slot++) {
-    const back = 8 + Math.floor(slot / 2) * 8; // metres behind the line
-    const lateral = (slot % 2 === 0 ? -1 : 1) * 3;
+    // Slot 0 is pole and sits ON the course centreline at the entrance, so a
+    // single driver always starts lined up with the course rather than offset
+    // to one side. Everyone else stacks in pairs behind it.
+    const row = slot === 0 ? 0 : Math.floor((slot + 1) / 2);
+    const lateral = slot === 0 ? 0 : (slot % 2 === 1 ? -1 : 1) * 3.5;
+    const back = ENTRY_DISTANCE + row * 7;
     const position: Vec3 = {
       x: start.x - startHeading.x * back + right.x * lateral,
       y: 0,
       z: start.z - startHeading.z * back + right.z * lateral,
     };
     grid.push({ name: `AC_START_${slot}`, position, yaw: startYaw });
-    // Pit boxes sit further right again so they never overlap the grid itself.
+    // Pit boxes sit well off to the side so they never overlap the grid or the
+    // course itself.
     grid.push({
       name: `AC_PIT_${slot}`,
       position: {
-        x: position.x + right.x * 10,
+        x: position.x + right.x * 14,
         y: 0,
-        z: position.z + right.z * 10,
+        z: position.z + right.z * 14,
       },
       yaw: startYaw,
     });
@@ -187,7 +200,17 @@ function buildTimingDummies(
 
   return [
     ...grid,
-    { name: "AC_HOTLAP_START_0", position: { ...start }, yaw: startYaw },
+    // Hotlap/practice spawns at the same centred entrance, so the very first
+    // crossing of the start line begins timing cleanly.
+    {
+      name: "AC_HOTLAP_START_0",
+      position: {
+        x: start.x - startHeading.x * ENTRY_DISTANCE,
+        y: 0,
+        z: start.z - startHeading.z * ENTRY_DISTANCE,
+      },
+      yaw: startYaw,
+    },
     ...gate(0, "0"),
     ...gate(courseEndIndex, "1"),
   ];
@@ -303,7 +326,10 @@ export function buildTrack(
     materials,
     meshes: [
       buildLotSurface(lotBounds, 0),
-      ...buildConeMeshes(cones.map((c) => c.position), 1),
+      ...buildConeMeshes(
+        cones.map((c) => ({ position: c.position, forward: c.forward, laid: c.type === "pointer" })),
+        1,
+      ),
       paint.build({ castShadows: false }),
       ...buildGuidanceMeshes(fused.points, halfWidth, 2, guidance, inferred.slalomSpans),
       buildPerimeterWall(wallBounds, 3),

@@ -211,13 +211,69 @@ export function buildCone(
 }
 
 /**
+ * A cone laid on its side, pointing along `forward`.
+ *
+ * Autocross pointer cones: the cone lies flat with its tip indicating the
+ * direction of travel. Built with a horizontal axis, resting on the ground.
+ */
+export function buildLaidCone(
+  builder: MeshBuilder,
+  base: Vec3,
+  forward: Vec3,
+  height = 0.46,
+  radius = 0.16,
+  segments = 8,
+): void {
+  const f = normalize({ x: forward.x, y: 0, z: forward.z });
+  // Axis is horizontal, so the cone rests with its centreline one radius up.
+  const centre: Vec3 = { x: base.x, y: base.y + radius, z: base.z };
+  const right: Vec3 = { x: f.z, y: 0, z: -f.x }; // perpendicular in the ground plane
+  const up: Vec3 = { x: 0, y: 1, z: 0 };
+  const apex: Vec3 = {
+    x: centre.x + f.x * height,
+    y: centre.y,
+    z: centre.z + f.z * height,
+  };
+
+  const ring: Vec3[] = [];
+  for (let k = 0; k < segments; k++) {
+    const a = (k / segments) * Math.PI * 2;
+    const c = Math.cos(a) * radius;
+    const s = Math.sin(a) * radius;
+    ring.push({
+      x: centre.x + right.x * c + up.x * s,
+      y: centre.y + right.y * c + up.y * s,
+      z: centre.z + right.z * c + up.z * s,
+    });
+  }
+
+  for (let k = 0; k < segments; k++) {
+    const p0 = ring[k]!;
+    const p1 = ring[(k + 1) % segments]!;
+    const outward = normalize({
+      x: (p0.x + p1.x) / 2 - centre.x,
+      y: (p0.y + p1.y) / 2 - centre.y,
+      z: (p0.z + p1.z) / 2 - centre.z,
+    });
+    builder.addTriangle(p0, p1, apex, outward, 1);
+  }
+}
+
+export interface ConeInstance {
+  position: Vec3;
+  /** Present on pointer cones, which lie flat aiming this way. */
+  forward?: Vec3;
+  laid?: boolean;
+}
+
+/**
  * Cones merged into as few meshes as possible.
  *
- * One mesh per ~2000 cones keeps us clear of the uint16 index limit while
- * avoiding hundreds of separate draw calls.
+ * Chunked to stay clear of the uint16 index limit while avoiding hundreds of
+ * separate draw calls.
  */
 export function buildConeMeshes(
-  positions: Vec3[],
+  cones: ConeInstance[],
   materialId: number,
   namePrefix = "cones",
 ): Kn5Mesh[] {
@@ -225,10 +281,11 @@ export function buildConeMeshes(
   const perMesh = Math.floor(60000 / VERTICES_PER_CONE);
   const meshes: Kn5Mesh[] = [];
 
-  for (let chunk = 0; chunk * perMesh < positions.length; chunk++) {
+  for (let chunk = 0; chunk * perMesh < cones.length; chunk++) {
     const builder = new MeshBuilder(`${namePrefix}_${chunk}`, materialId);
-    for (const centre of positions.slice(chunk * perMesh, (chunk + 1) * perMesh)) {
-      buildCone(builder, centre);
+    for (const cone of cones.slice(chunk * perMesh, (chunk + 1) * perMesh)) {
+      if (cone.laid && cone.forward) buildLaidCone(builder, cone.position, cone.forward);
+      else buildCone(builder, cone.position);
     }
     meshes.push(builder.build({ castShadows: false }));
   }

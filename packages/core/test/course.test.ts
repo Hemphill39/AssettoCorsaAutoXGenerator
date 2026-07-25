@@ -351,3 +351,73 @@ describe("slalom cone placement", () => {
     for (const span of slalomSpans) expect(span.to).toBeGreaterThan(span.from);
   });
 });
+
+describe("pointer cones", () => {
+  /**
+   * Autocross marks direction with cones laid on their side pointing the way,
+   * not with painted arrows. They belong at direction changes, where the course
+   * could otherwise be read two ways.
+   */
+  it("lays pointer cones at corners but not on straights", () => {
+    const straightLine: Vec3[] = [];
+    for (let i = 0; i <= 200; i++) straightLine.push({ x: 0, y: 0, z: i });
+    const onStraight = layoutCones(centerlineFrom(straightLine)).cones.filter(
+      (c) => c.type === "pointer",
+    );
+    expect(onStraight).toHaveLength(0);
+
+    const circle: Vec3[] = [];
+    for (let i = 0; i <= 300; i++) {
+      const a = (i / 300) * Math.PI * 2;
+      circle.push({ x: 30 * Math.cos(a), y: 0, z: 30 * Math.sin(a) });
+    }
+    const onCorner = layoutCones(centerlineFrom(circle), { detectSlaloms: false }).cones.filter(
+      (c) => c.type === "pointer",
+    );
+    expect(onCorner.length).toBeGreaterThan(2);
+  });
+
+  it("aims each pointer along the direction of travel", () => {
+    const circle: Vec3[] = [];
+    for (let i = 0; i <= 300; i++) {
+      const a = (i / 300) * Math.PI * 2;
+      circle.push({ x: 30 * Math.cos(a), y: 0, z: 30 * Math.sin(a) });
+    }
+    const points = centerlineFrom(circle);
+    for (const cone of layoutCones(points, { detectSlaloms: false }).cones) {
+      if (cone.type !== "pointer") continue;
+      expect(cone.forward).toBeDefined();
+      const heading = headingAt(points, cone.station);
+      // Must agree with the local heading, not point backwards.
+      const dot = cone.forward!.x * heading.x + cone.forward!.z * heading.z;
+      expect(dot).toBeGreaterThan(0.9);
+    }
+  });
+
+  it("respects the minimum spacing between pointers", () => {
+    const circle: Vec3[] = [];
+    for (let i = 0; i <= 400; i++) {
+      const a = (i / 400) * Math.PI * 2;
+      circle.push({ x: 40 * Math.cos(a), y: 0, z: 40 * Math.sin(a) });
+    }
+    const points = centerlineFrom(circle);
+    const pointers = layoutCones(points, { detectSlaloms: false, pointerSpacing: 25 }).cones
+      .filter((c) => c.type === "pointer")
+      .sort((a, b) => a.station - b.station);
+
+    for (let i = 1; i < pointers.length; i++) {
+      const gap = points[pointers[i]!.station]!.distance - points[pointers[i - 1]!.station]!.distance;
+      expect(gap).toBeGreaterThanOrEqual(25 - 1e-6);
+    }
+  });
+
+  it("can be turned off", () => {
+    const circle: Vec3[] = [];
+    for (let i = 0; i <= 300; i++) {
+      const a = (i / 300) * Math.PI * 2;
+      circle.push({ x: 30 * Math.cos(a), y: 0, z: 30 * Math.sin(a) });
+    }
+    const cones = layoutCones(centerlineFrom(circle), { pointerCones: false }).cones;
+    expect(cones.filter((c) => c.type === "pointer")).toHaveLength(0);
+  });
+});

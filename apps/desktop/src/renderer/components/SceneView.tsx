@@ -46,6 +46,9 @@ const CONE_COLORS: Record<ConeType, number> = {
   finish: 0xf2f2f2,
   slalom: 0xf1c40f,
   gate: 0xe8792a,
+  // Same family as a gate cone, lighter, since a pointer is a real cone laid on
+  // its side rather than a different kind of marker.
+  pointer: 0xffb066,
 };
 
 const MAX_PHI = 1.45; // just short of horizontal, so the view never flips through the ground
@@ -127,6 +130,7 @@ export const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function Sc
       finish: new THREE.MeshBasicMaterial({ color: CONE_COLORS.finish }),
       slalom: new THREE.MeshBasicMaterial({ color: CONE_COLORS.slalom }),
       gate: new THREE.MeshBasicMaterial({ color: CONE_COLORS.gate }),
+      pointer: new THREE.MeshBasicMaterial({ color: CONE_COLORS.pointer }),
     };
 
     const coneGroup = new THREE.Group();
