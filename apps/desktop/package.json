@@ -20,7 +20,6 @@
       "dist/**/*"
     ],
     "win": {
-      "//": "zip cross-compiles cleanly from macOS; NSIS installers need Wine.",
       "target": [
         "zip"
       ],
@@ -30,6 +29,9 @@
       "target": [
         "dir"
       ]
-    }
-  }
+    },
+    "electronVersion": "33.4.11"
+  },
+  "description": "Turn autocross GPS logs into drivable Assetto Corsa tracks",
+  "author": "Eric Hemphill"
 }
