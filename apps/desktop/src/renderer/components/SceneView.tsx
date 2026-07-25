@@ -97,6 +97,7 @@ export const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function Sc
     hasFit: boolean;
   } | null>(null);
   const updateCameraRef = useRef<(() => void) | null>(null);
+  const applyMarkerScaleRef = useRef<(() => void) | null>(null);
 
   useImperativeHandle(ref, () => ({
     getViewCentreAc(): Vec3 {
@@ -169,9 +170,29 @@ export const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function Sc
       camera.near = 0.1;
       camera.far = distance * 2;
       camera.updateProjectionMatrix();
+      applyMarkerScale();
       renderer.render(scene, camera);
     }
     updateCameraRef.current = updateCamera;
+
+    /**
+     * Keeps cone markers a usable size on screen at any zoom.
+     *
+     * A real cone is ~0.35 m wide in a course spanning 300 m, so at the zoom
+     * needed to see the whole layout it renders about one pixel across —
+     * invisible, and impossible to grab. Markers are therefore scaled with the
+     * view rather than left at world size.
+     */
+    function applyMarkerScale(): void {
+      const scale = clamp(state.cam.viewSize / 20, 1, 12);
+      for (const child of state.coneGroup.children) {
+        if (typeof child.userData["coneIndex"] !== "number") continue;
+        // The geometry is pre-translated so its base sits at y=0, so scaling
+        // alone keeps the marker standing on the ground.
+        child.scale.setScalar(scale);
+      }
+    }
+    applyMarkerScaleRef.current = applyMarkerScale;
 
     function panBy(dxPixels: number, dyPixels: number): void {
       const worldPerPixel = (state.cam.viewSize * 2) / Math.max(1, state.size.height);
@@ -212,14 +233,42 @@ export const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function Sc
       );
     }
 
+    /**
+     * Nearest cone within a pixel radius of the cursor, or null.
+     *
+     * Screen-space rather than a ray/mesh intersection: cone markers are tiny
+     * relative to the course, so requiring a direct hit made them effectively
+     * unclickable and every attempted drag fell through to panning the view.
+     * Projecting to screen space gives a consistent grab radius at any zoom.
+     */
+    function coneNear(e: PointerEvent, radiusPx = 18): number | null {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+
+      let best: number | null = null;
+      let bestDist = radiusPx;
+
+      for (const child of coneGroup.children) {
+        const index = child.userData["coneIndex"];
+        if (typeof index !== "number") continue;
+        const projected = child.position.clone().project(camera);
+        const sx = ((projected.x + 1) / 2) * rect.width;
+        const sy = ((1 - projected.y) / 2) * rect.height;
+        const dist = Math.hypot(sx - px, sy - py);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = index;
+        }
+      }
+      return best;
+    }
+
     function onPointerDown(e: PointerEvent): void {
       renderer.domElement.setPointerCapture(e.pointerId);
       if (e.button === 0) {
-        raycaster.setFromCamera(pointerNdc(e), camera);
-        const hits = raycaster.intersectObjects(coneGroup.children, false);
-        const hit = hits.find((h) => typeof h.object.userData["coneIndex"] === "number");
-        if (hit) {
-          const index = hit.object.userData["coneIndex"] as number;
+        const index = coneNear(e);
+        if (index !== null) {
           drag = { mode: "cone", index };
           onSelectConeRef.current(index);
         } else {
@@ -456,6 +505,7 @@ export const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function Sc
       }
     });
 
+    applyMarkerScaleRef.current?.();
     updateCameraRef.current?.();
   }, [cones, selectedIndex]);
 
